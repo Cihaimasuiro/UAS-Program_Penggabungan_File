@@ -9,6 +9,7 @@ from pathlib import Path
 
 # Setup logging
 from config import LogConfig, APP_NAME, APP_VERSION
+from core.settings_manager import get_settings_manager
 
 def setup_logging():
     """Configure logging system"""
@@ -27,6 +28,15 @@ def setup_logging():
     logger = logging.getLogger(__name__)
     logger.info(f"Starting {APP_NAME} v{APP_VERSION}")
     return logger
+
+def apply_user_settings(logger):
+    """Load and apply settings from settings.json at startup"""
+    try:
+        manager = get_settings_manager()
+        manager.apply_to_config()
+        logger.info("User settings loaded and applied to config.")
+    except Exception as e:
+        logger.error(f"Failed to apply user settings: {e}")
 
 def check_dependencies():
     """Check if required dependencies are installed"""
@@ -48,6 +58,7 @@ def main():
     """Main application entry point"""
     # Setup
     logger = setup_logging()
+    apply_user_settings(logger)
     check_dependencies()
     
     try:

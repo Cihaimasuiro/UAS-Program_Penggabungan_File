@@ -172,9 +172,7 @@ SUCCESS_MESSAGES = {
 }
 
 # ==================== HELPER FUNCTIONS ====================
-from typing import Optional
-
-def get_output_path(filename: str, use_timestamp: Optional[bool] = None) -> Path:
+def get_output_path(filename: str, use_timestamp: bool = None) -> Path:
     """Generate output path dengan optional timestamp"""
     if use_timestamp is None:
         use_timestamp = OutputConfig.USE_TIMESTAMP

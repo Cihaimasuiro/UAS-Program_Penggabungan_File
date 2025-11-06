@@ -15,6 +15,8 @@ from config import (
 from core.file_manager import FileManager
 from core.image_processor import ImageProcessor
 from core.text_processor import TextProcessor
+from ui.settings_ui import show_settings
+from core.settings_manager import get_settings_manager
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +357,11 @@ For more info, check the documentation.
         """Main CLI loop"""
         self.print_header()
         
+        # Load user settings
+        from core.settings_manager import get_settings_manager
+        settings_mgr = get_settings_manager()
+        settings_mgr.apply_to_config()
+        
         while True:
             self.print_menu()
             choice = input("Select option (0-7): ").strip()
@@ -379,7 +386,17 @@ For more info, check the documentation.
                 self.batch_process()
             
             elif choice == '6':
-                print("\n⚙️ Settings - Coming soon!")
+                            logger.info("Entering settings menu...")
+                            show_settings()
+                            logger.info("Exited settings menu.")
+                            
+                            try:
+                                get_settings_manager().apply_to_config()
+                                self.image_processor = ImageProcessor()
+                                self.text_processor = TextProcessor()
+                                print("\n✅ Settings applied to current session!")
+                            except Exception as e:
+                                logger.error(f"Failed to re-apply settings: {e}")
             
             elif choice == '7':
                 self.show_help()
