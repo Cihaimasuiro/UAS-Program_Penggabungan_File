@@ -7,8 +7,6 @@ import sys
 import logging
 from pathlib import Path
 
-# Bintang imports
-
 # Setup logging
 from config import LogConfig, APP_NAME, APP_VERSION
 from core.settings_manager import get_settings_manager
@@ -64,10 +62,43 @@ def main():
     check_dependencies()
     
     try:
-        # Import CLI
+        # Behaviour:
+        # - If --gui flag provided -> start GUI
+        # - If --cli flag provided -> start CLI
+        # - If neither provided -> ask the user interactively which interface to use
+        if '--gui' in sys.argv:
+            try:
+                from ui.gui import run_gui
+                run_gui()
+                return
+            except Exception as e:
+                logger.error(f"Failed to start GUI: {e}", exc_info=True)
+                print(f"Error starting GUI: {e}")
+
+        if '--cli' in sys.argv:
+            from ui.cli import CLI
+            cli = CLI()
+            cli.run()
+            return
+
+        # No explicit flag provided: ask user which interface they want
+        try:
+            choice = input("Pilih mode: [1] Terminal (CLI)  [2] GUI  (default 1) : ").strip()
+        except EOFError:
+            # Non-interactive environment -> default to CLI
+            choice = '1'
+
+        if choice == '2' or choice.lower() in ('g', 'gui'):
+            try:
+                from ui.gui import run_gui
+                run_gui()
+                return
+            except Exception as e:
+                logger.error(f"Failed to start GUI after user request: {e}", exc_info=True)
+                print(f"Error starting GUI: {e}\nFalling back to CLI.")
+
+        # Default/ fallback to CLI
         from ui.cli import CLI
-        
-        # Run application
         cli = CLI()
         cli.run()
         
