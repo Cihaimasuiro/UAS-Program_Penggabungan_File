@@ -165,6 +165,30 @@ class GUIApp:
         except Exception:
             pass
 
+        # Ask user which mode: Merge into single output OR Collect files into a folder
+        mode_choice = self._ask_merge_or_collect()
+
+        if mode_choice == 'collect':
+            # Ask destination folder via dialog
+            dest_dir = filedialog.askdirectory(title="Select destination folder (Cancel to use default)")
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            default_folder = str(get_output_path(f'collected_{timestamp}'))
+            out_folder = dest_dir if dest_dir else default_folder
+
+            # Ask copy vs move
+            move_flag = messagebox.askyesno("Copy or Move?", "Move files instead of copying?\nYes = Move (remove originals)\nNo = Copy (keep originals)")
+
+            success, error = self.cli.file_manager.copy_files_to_folder(self.cli.files, out_folder, move=move_flag)
+            if success:
+                verb = 'moved' if move_flag else 'copied'
+                self._log(f"✅ Files {verb} to folder: {out_folder}")
+                messagebox.showinfo("Success", f"Files {verb} to folder:\n{out_folder}")
+            else:
+                self._log(f"❌ Error copying/moving files: {error}")
+                messagebox.showerror("Error", str(error))
+            return
+
         if category == 'image':
             # Use defaults from settings manager where possible
             s = self.settings_mgr.settings
@@ -288,6 +312,41 @@ class GUIApp:
 
     def run(self):
         self.root.mainloop()
+
+    def _ask_merge_or_collect(self) -> str:
+        """Show a small modal dialog with two labeled buttons: Merge and Collect.
+        Returns 'merge' or 'collect'.
+        """
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Choose action")
+        dialog.geometry("360x120")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        label = ttk.Label(dialog, text="How do you want to process the selected files?")
+        label.pack(pady=10)
+
+        choice = {'value': 'merge'}
+
+        def on_merge():
+            choice['value'] = 'merge'
+            dialog.destroy()
+
+        def on_collect():
+            choice['value'] = 'collect'
+            dialog.destroy()
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=8)
+
+        btn_merge = ttk.Button(btn_frame, text="Merge into single output", command=on_merge)
+        btn_merge.pack(side=tk.LEFT, padx=8)
+
+        btn_collect = ttk.Button(btn_frame, text="Collect into folder", command=on_collect)
+        btn_collect.pack(side=tk.LEFT, padx=8)
+
+        self.root.wait_window(dialog)
+        return choice['value']
 
 
 def run_gui():

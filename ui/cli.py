@@ -12,6 +12,7 @@ from config import (
     APP_NAME, APP_VERSION, ImageConfig, TextConfig,
     get_output_path, get_file_category
 )
+from datetime import datetime
 from core.file_manager import FileManager
 from core.image_processor import ImageProcessor
 from core.text_processor import TextProcessor
@@ -262,8 +263,67 @@ class CLI:
             return
         
         if category == 'image':
+            # Ask user for processing mode: merge into single output or collect files into folder
+            print("\nSelect processing mode:")
+            print("1. Merge into single output file (images will be combined)")
+            print("2. Collect files into a folder (no merging, just copy files)")
+            mode = input("Mode (1-2) [1]: ").strip() or '1'
+
+            if mode == '2':
+                # Ask whether copy or move
+                print("\nCollect mode selected. Do you want to copy files or move them? (move will remove originals)")
+                print("1. Copy (default)")
+                print("2. Move")
+                cm_choice = input("Choice (1-2) [1]: ").strip() or '1'
+                move_flag = (cm_choice == '2')
+
+                # Ask for destination folder or use default
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                default_folder = str(get_output_path(f'collected_images_{timestamp}'))
+                dest = input(f"Destination folder (press Enter to use default: {default_folder}): ").strip()
+                out_folder = dest if dest else default_folder
+
+                # Ensure destination exists (copy_files_to_folder will create but validate path string)
+                success, error = self.file_manager.copy_files_to_folder(self.files, out_folder, move=move_flag)
+                if success:
+                    verb = 'moved' if move_flag else 'copied'
+                    print(f"\n✅ Files {verb} to folder: {out_folder}")
+                else:
+                    print(f"\n❌ Error copying/moving files: {error}")
+                return
+
+            # otherwise proceed with merging
             self.process_images()
         elif category == 'text':
+            # Ask user for processing mode: merge into single output or collect files into folder
+            print("\nSelect processing mode:")
+            print("1. Merge into single output file (merge text contents)")
+            print("2. Collect files into a folder (no merging, just copy files)")
+            mode = input("Mode (1-2) [1]: ").strip() or '1'
+
+            if mode == '2':
+                # Ask whether copy or move
+                print("\nCollect mode selected. Do you want to copy files or move them? (move will remove originals)")
+                print("1. Copy (default)")
+                print("2. Move")
+                cm_choice = input("Choice (1-2) [1]: ").strip() or '1'
+                move_flag = (cm_choice == '2')
+
+                # Ask for destination folder or use default
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                default_folder = str(get_output_path(f'collected_text_{timestamp}'))
+                dest = input(f"Destination folder (press Enter to use default: {default_folder}): ").strip()
+                out_folder = dest if dest else default_folder
+
+                success, error = self.file_manager.copy_files_to_folder(self.files, out_folder, move=move_flag)
+                if success:
+                    verb = 'moved' if move_flag else 'copied'
+                    print(f"\n✅ Files {verb} to folder: {out_folder}")
+                else:
+                    print(f"\n❌ Error copying/moving files: {error}")
+                return
+
+            # otherwise proceed with merging
             self.process_text()
         else:
             print(f"\n⚠ Unsupported file category: {category}")

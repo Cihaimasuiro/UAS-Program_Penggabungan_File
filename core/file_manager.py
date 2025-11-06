@@ -228,6 +228,38 @@ class FileManager:
                 if os.path.exists(filepath):
                     total_size += os.path.getsize(filepath)
         return total_size
+
+    @staticmethod
+    def copy_files_to_folder(filepaths: List[str], dest_dir: str, move: bool = False) -> Tuple[bool, Optional[str]]:
+        """
+        Copy or move a list of files into a destination folder.
+        Returns: (success, error_message)
+        """
+        path = Path(dest_dir)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            failed = []
+            for filepath in filepaths:
+                src = Path(filepath)
+                if not src.exists():
+                    failed.append((filepath, 'not found'))
+                    continue
+                try:
+                    if move:
+                        shutil.move(str(src), str(path))
+                    else:
+                        shutil.copy2(str(src), str(path))
+                    logger.info(f"Copied: {src.name} -> {path}")
+                except Exception as e:
+                    logger.error(f"Failed to copy {src}: {e}")
+                    failed.append((filepath, str(e)))
+
+            if failed:
+                return False, f"Some files failed to copy: {failed}"
+            return True, None
+        except Exception as e:
+            logger.error(f"Failed to create destination folder or copy files: {e}")
+            return False, str(e)
     
     def get_statistics(self) -> dict:
         """Get statistik dari processing yang sudah dilakukan"""

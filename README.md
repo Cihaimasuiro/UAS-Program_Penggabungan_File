@@ -1,3 +1,54 @@
+# File Merger Pro — GUI & CLI
+
+This repository provides a small utility to merge or collect files (images, text) via a CLI or a Tkinter GUI.
+
+Quick usage
+
+- Run CLI:
+
+  ```
+  python main.py
+  # Or force CLI:
+  python main.py --cli
+  ```
+
+- Run GUI:
+
+  ```
+  python main.py --gui
+  ```
+
+Collect into folder (new feature)
+
+When you choose `Process & Merge Files` (menu 4), you are now asked whether you want to:
+
+- Merge files into a single output (images are combined / text merged). Or
+- Collect files into a folder (no content merging) — useful to group files in one output folder.
+
+Options available when collecting:
+
+- Choose destination folder:
+  - CLI: you can type a destination path or press Enter to use the default output folder (timestamped).
+  - GUI: a folder selection dialog appears; cancel to use the default output folder.
+
+- Copy vs Move:
+  - CLI: you are asked whether to copy (default) or move files (move removes the originals).
+  - GUI: a prompt asks whether to move (Yes) or copy (No).
+
+Examples
+
+- Copy selected images into a folder (CLI):
+  - Add files -> Choose menu 4 -> choose mode 2 (collect) -> choose 1 (copy) -> press Enter to accept default folder.
+
+- Move selected text files into an explicit folder (CLI):
+  - Add files -> Choose menu 4 -> choose mode 2 (collect) -> choose 2 (move) -> enter path `C:\temp\mycollected`.
+
+Notes
+
+- Output folders are created automatically when needed. Default names include a timestamp to avoid overwriting.
+- If copying/moving fails for some files, the operation reports which files failed.
+
+If you want a README integrated into the existing README.md in the repo rather than adding this new file, tell me and I'll merge the content.
 # 🎓 UAS: Program Penggabung File (File Merger Pro)
 
 ![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue)
