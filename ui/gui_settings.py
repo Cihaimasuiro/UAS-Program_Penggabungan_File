@@ -1,29 +1,26 @@
 """
-Settings GUI Module - Bauhaus Edition
+Settings GUI Module - Bauhaus Edition v2.3
+Includes PDF/Universal Configuration Tab.
 """
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, StringVar, BooleanVar, IntVar
 from core.settings_manager import SettingsManager, UserSettings
-from config import ImageConfig, TextConfig
+from config import ImageConfig, TextConfig, PdfConfig
 
-# Bauhaus Palette (Local Definition for containment)
 COLOR_BG = "#F2F2F2"
 COLOR_FG = "#1A1A1A"
-COLOR_ACCENT_1 = "#D22730"
 COLOR_ACCENT_2 = "#1F3A93"
 COLOR_PANEL = "#FFFFFF"
 
 class SettingsWindow(tk.Toplevel):
-    """Bauhaus-styled settings modal."""
-    
     def __init__(self, parent, manager: SettingsManager):
         super().__init__(parent)
         self.manager = manager
         self.original_settings = self.manager.load_settings()
         
         self.title("Pengaturan")
-        self.geometry("700x600")
+        self.geometry("750x650")
         self.configure(bg=COLOR_BG)
         self.transient(parent)
         self.grab_set()
@@ -34,7 +31,6 @@ class SettingsWindow(tk.Toplevel):
         self._build_ui()
 
     def _create_variables(self):
-        # Automatically create variables based on UserSettings dataclass
         for key, value in self.original_settings.__dict__.items():
             if isinstance(value, bool):
                 self.vars[key] = BooleanVar()
@@ -49,13 +45,11 @@ class SettingsWindow(tk.Toplevel):
                 var.set(getattr(self.original_settings, key))
 
     def _build_ui(self):
-        # Header
         header = tk.Frame(self, bg=COLOR_BG)
         header.pack(fill=tk.X, padx=20, pady=20)
         tk.Label(header, text="KONFIGURASI", font=("Helvetica", 16, "bold"), 
                  bg=COLOR_BG, fg=COLOR_FG).pack(side=tk.LEFT)
 
-        # Styled Notebook
         style = ttk.Style()
         style.configure("TNotebook", background=COLOR_BG)
         style.configure("TNotebook.Tab", font=("Helvetica", 10), padding=[10, 5])
@@ -65,14 +59,12 @@ class SettingsWindow(tk.Toplevel):
 
         self._build_tab(notebook, "  GAMBAR  ", self._build_image_tab)
         self._build_tab(notebook, "  TEKS  ", self._build_text_tab)
+        self._build_tab(notebook, "  PDF / UNIVERSAL  ", self._build_pdf_tab) # NEW
         self._build_tab(notebook, "  OUTPUT  ", self._build_output_tab)
-        self._build_tab(notebook, "  SISTEM  ", self._build_advanced_tab)
 
-        # Footer Actions
         footer = tk.Frame(self, bg=COLOR_BG, pady=20)
         footer.pack(fill=tk.X, padx=20)
 
-        # Helper for buttons
         def btn(txt, cmd, style_name="TButton"):
             ttk.Button(footer, text=txt, style=style_name, command=cmd).pack(side=tk.RIGHT, padx=5)
 
@@ -97,34 +89,35 @@ class SettingsWindow(tk.Toplevel):
     def _build_image_tab(self, parent):
         p = self._section(parent, "Tata Letak & Ukuran")
         p.pack(fill=tk.X)
-        
-        self._combo(p, "Default Layout:", 'image_default_layout', 
-                    ['vertical', 'horizontal', 'grid'])
+        self._combo(p, "Default Layout:", 'image_default_layout', ['vertical', 'horizontal', 'grid'])
         self._spin(p, "Spacing (px):", 'image_default_spacing', 0, 500)
-        self._combo(p, "Resize Mode:", 'image_default_resize_mode', 
-                    list(ImageConfig.RESIZE_MODES.keys()))
+        self._combo(p, "Resize Mode:", 'image_default_resize_mode', list(ImageConfig.RESIZE_MODES.keys()))
 
         p = self._section(parent, "Efek & Watermark")
         p.pack(fill=tk.X, pady=10)
-        
-        self._combo(p, "Default Filter:", 'image_default_filter', 
-                    list(ImageConfig.FILTERS.keys()))
+        self._combo(p, "Default Filter:", 'image_default_filter', list(ImageConfig.FILTERS.keys()))
         self._check(p, "Aktifkan Watermark Otomatis", 'image_add_watermark')
         self._entry(p, "Teks Watermark:", 'image_watermark_text')
 
     def _build_text_tab(self, parent):
         p = self._section(parent, "Format Dokumen")
         p.pack(fill=tk.X)
-        
-        self._combo(p, "Separator Style:", 'text_default_separator', 
-                    list(TextConfig.SEPARATOR_STYLES.keys()))
+        self._combo(p, "Separator Style:", 'text_default_separator', list(TextConfig.SEPARATOR_STYLES.keys()))
         self._check(p, "Nomor Baris (Line Numbers)", 'text_add_line_numbers')
         self._check(p, "Export ke Markdown (.md)", 'text_markdown_export')
         
         p = self._section(parent, "Encoding")
         p.pack(fill=tk.X, pady=10)
-        self._combo(p, "Default Encoding:", 'text_default_encoding', 
-                    ['utf-8', 'latin-1', 'cp1252', 'ascii'])
+        self._combo(p, "Default Encoding:", 'text_default_encoding', ['utf-8', 'latin-1', 'cp1252', 'ascii'])
+
+    def _build_pdf_tab(self, parent): # NEW TAB
+        p = self._section(parent, "Universal PDF Settings")
+        p.pack(fill=tk.X)
+        
+        self._combo(p, "Ukuran Halaman:", 'pdf_page_size', list(PdfConfig.PAGE_SIZES.keys()))
+        self._combo(p, "Jenis Font:", 'pdf_font', ['Helvetica', 'Times-Roman', 'Courier'])
+        self._spin(p, "Ukuran Font (pt):", 'pdf_font_size', 6, 24)
+        self._check(p, "Tampilkan Nomor Halaman", 'pdf_show_page_numbers')
 
     def _build_output_tab(self, parent):
         p = self._section(parent, "Penyimpanan")
@@ -133,7 +126,6 @@ class SettingsWindow(tk.Toplevel):
         f = tk.Frame(p, bg=COLOR_PANEL)
         f.pack(fill=tk.X, pady=5)
         tk.Label(f, text="Output Folder:", bg=COLOR_PANEL).pack(anchor="w")
-        
         e = ttk.Entry(f, textvariable=self.vars['output_default_directory'])
         e.pack(side=tk.LEFT, fill=tk.X, expand=True, pady=2)
         ttk.Button(f, text="...", width=3, command=self._select_dir).pack(side=tk.LEFT, padx=5)
@@ -141,13 +133,7 @@ class SettingsWindow(tk.Toplevel):
         self._check(p, "Timestamp di Nama File", 'output_use_timestamp')
         self._check(p, "Backup File Lama (Safe Mode)", 'output_create_backup')
 
-    def _build_advanced_tab(self, parent):
-        p = self._section(parent, "Performa")
-        p.pack(fill=tk.X)
-        self._spin(p, "Max Threads:", 'performance_max_workers', 1, 16)
-        self._check(p, "Debug Mode (Log Verbose)", 'advanced_debug_mode')
-
-    # --- UI Helpers ---
+    # Helpers
     def _combo(self, parent, label, key, values):
         f = tk.Frame(parent, bg=COLOR_PANEL)
         f.pack(fill=tk.X, pady=2)

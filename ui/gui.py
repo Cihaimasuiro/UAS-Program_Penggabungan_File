@@ -279,13 +279,22 @@ class GUIApp:
         win = Toplevel(self.root)
         win.title("Universal PDF Merge")
         win.config(bg=COLOR_BG)
+        
         tk.Label(win, text="Gabung Semua ke PDF", font=("Helvetica", 12, "bold"), bg=COLOR_BG).pack(pady=15)
         
+        # Inform user that settings are used
+        info = f"Settings: {PdfConfig.DEFAULT_PAGE_SIZE}, {PdfConfig.DEFAULT_FONT}"
+        tk.Label(win, text=info, font=("Helvetica", 9), bg=COLOR_BG, fg="#666").pack()
+
         def run():
             win.destroy()
+            # FORCE APPLY SETTINGS before running to ensure latest config is used
+            self.settings_mgr.apply_to_config()
+            
             out_path = str(get_output_path("merged_universal.pdf"))
             self._run_bg(lambda: self.universal_processor.merge_all_to_pdf(self.files, out_path), "Universal Merge")
-        ttk.Button(win, text="MULAI", style="Primary.TButton", command=run).pack(pady=20)
+            
+        ttk.Button(win, text="MULAI PROSES", style="Primary.TButton", command=run).pack(fill=tk.X, padx=20, pady=20)
 
     def show_image_options(self):
         # (Re-implement options window logic here, abbreviated for brevity as it's unchanged)

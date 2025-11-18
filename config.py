@@ -9,10 +9,9 @@ from pathlib import Path
 
 # ==================== APPLICATION INFO ====================
 APP_NAME = "File Merger Pro"
-APP_VERSION = "2.2.0"
-# GANTI BAGIAN INI:
+APP_VERSION = "2.3.0"
 APP_AUTHOR = "Tim Damkar (TIA6) - Universitas Duta Bangsa Surakarta"
-APP_DESCRIPTION = "Aplikasi penggabungan file (Gambar, Teks, PDF) karya Kelompok Damkar"
+APP_DESCRIPTION = "Advanced file merging tool with Bauhaus-style GUI"
 
 # ==================== PATHS ====================
 BASE_DIR = Path(__file__).parent.resolve()
@@ -29,13 +28,10 @@ SUPPORTED_IMAGE_FORMATS = {
     '.tiff', '.tif', '.webp', '.ico'
 }
 
-# Added Web & Code formats here
 SUPPORTED_TEXT_FORMATS = {
     '.txt', '.md', '.csv', '.json', '.xml', 
     '.log', '.ini', '.yaml', '.yml',
-    # Web
     '.html', '.htm', '.css', '.js', '.php', '.asp', '.jsx', '.ts',
-    # Code
     '.py', '.java', '.c', '.cpp', '.h', '.cs', '.go', '.rs', '.sh', '.bat', '.sql'
 }
 
@@ -43,15 +39,12 @@ SUPPORTED_DOCUMENT_FORMATS = {
     '.pdf', '.docx', '.doc', '.odt'
 }
 
-# New Categories
 SUPPORTED_OFFICE_FORMATS = {
     '.xlsx', '.xls', '.pptx', '.ppt'
 }
 
 SUPPORTED_BINARY_FORMATS = {
-    # Executables
     '.exe', '.msi', '.bin', '.dll',
-    # Archives
     '.zip', '.rar', '.7z', '.tar', '.gz'
 }
 
@@ -74,9 +67,6 @@ class ImageConfig:
     DEFAULT_BACKGROUND = (255, 255, 255)
     DEFAULT_QUALITY = 95
     
-    MAX_IMAGE_WIDTH = 15000
-    MAX_IMAGE_HEIGHT = 15000
-    
     RESIZE_MODES = {
         'none': 'Original Size',
         'fit': 'Fit to Box (Aspect Ratio)',
@@ -95,16 +85,26 @@ class ImageConfig:
 # ==================== DEFAULTS: TEXT ====================
 class TextConfig:
     DEFAULT_ENCODING = 'utf-8'
-    FALLBACK_ENCODINGS = ['latin-1', 'cp1252', 'iso-8859-1']
-    
+    DEFAULT_SEPARATOR = 'simple'
     SEPARATOR_STYLES = {
         'simple': '=== {filename} ===',
         'fancy': '╔{border}╗\n║ {filename}\n╚{border}╝',
         'minimal': '--- {filename} ---',
         'none': ''
     }
+
+# ==================== DEFAULTS: PDF (NEW) ====================
+class PdfConfig:
+    DEFAULT_PAGE_SIZE = 'A4' # A4, LETTER
+    DEFAULT_FONT = 'Helvetica'
+    DEFAULT_FONT_SIZE = 10
+    SHOW_PAGE_NUMBERS = True
     
-    DEFAULT_SEPARATOR = 'simple'
+    PAGE_SIZES = {
+        'A4': (595.27, 841.89),
+        'LETTER': (612.0, 792.0),
+        'LEGAL': (612.0, 1008.0)
+    }
 
 # ==================== LOGGING & OUTPUT ====================
 class LogConfig:
@@ -116,19 +116,6 @@ class OutputConfig:
     USE_TIMESTAMP = True
     AUTO_OVERWRITE = False
     CREATE_BACKUP = True
-
-# ==================== MESSAGES ====================
-ERROR_MESSAGES = {
-    'file_not_found': "File not found: {path}",
-    'invalid_format': "Unsupported format: {format}",
-    'read_error': "Read failed: {error}",
-    'write_error': "Write failed: {error}",
-    'permission_error': "Permission denied: {path}",
-}
-
-SUCCESS_MESSAGES = {
-    'save_complete': "File saved successfully: {path}",
-}
 
 # ==================== HELPERS ====================
 def get_output_path(filename: str, use_timestamp: bool = True) -> Path:
@@ -143,7 +130,6 @@ def is_supported_file(filepath: str) -> bool:
     return Path(filepath).suffix.lower() in ALL_SUPPORTED_FORMATS
 
 def get_file_category(filepath: str) -> str:
-    """Categorize file for processing logic."""
     ext = Path(filepath).suffix.lower()
     if ext in SUPPORTED_IMAGE_FORMATS: return 'image'
     if ext in SUPPORTED_TEXT_FORMATS: return 'text'

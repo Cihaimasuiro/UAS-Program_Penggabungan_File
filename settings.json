@@ -10,11 +10,15 @@
   "text_default_encoding": "utf-8",
   "text_add_line_numbers": false,
   "text_markdown_export": false,
+  "pdf_page_size": "A4",
+  "pdf_font": "Helvetica",
+  "pdf_font_size": 10,
+  "pdf_show_page_numbers": true,
   "output_use_timestamp": true,
   "output_create_backup": true,
   "output_default_directory": "output",
   "performance_max_workers": 4,
   "advanced_debug_mode": false,
-  "last_modified": "2025-11-18T22:19:07.063948",
+  "last_modified": "2025-11-18T22:30:13.768227",
   "version": "2.0.0"
 }
