@@ -1,7 +1,6 @@
 """
 Configuration Module
 Centralizes application constants, file types, and default settings.
-Standardized to English for consistency.
 """
 
 import os
@@ -9,9 +8,9 @@ from pathlib import Path
 
 # ==================== APPLICATION INFO ====================
 APP_NAME = "File Merger Pro"
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.2.1"
 APP_AUTHOR = "Tim Damkar (TIA6) - Universitas Duta Bangsa Surakarta"
-APP_DESCRIPTION = "Advanced file merging tool with Bauhaus-style GUI"
+APP_DESCRIPTION = "Aplikasi penggabungan file (Gambar, Teks, PDF) karya Kelompok Damkar"
 
 # ==================== PATHS ====================
 BASE_DIR = Path(__file__).parent.resolve()
@@ -35,25 +34,13 @@ SUPPORTED_TEXT_FORMATS = {
     '.py', '.java', '.c', '.cpp', '.h', '.cs', '.go', '.rs', '.sh', '.bat', '.sql'
 }
 
-SUPPORTED_DOCUMENT_FORMATS = {
-    '.pdf', '.docx', '.doc', '.odt'
-}
-
-SUPPORTED_OFFICE_FORMATS = {
-    '.xlsx', '.xls', '.pptx', '.ppt'
-}
-
-SUPPORTED_BINARY_FORMATS = {
-    '.exe', '.msi', '.bin', '.dll',
-    '.zip', '.rar', '.7z', '.tar', '.gz'
-}
+SUPPORTED_DOCUMENT_FORMATS = {'.pdf', '.docx', '.doc', '.odt'}
+SUPPORTED_OFFICE_FORMATS = {'.xlsx', '.xls', '.pptx', '.ppt'}
+SUPPORTED_BINARY_FORMATS = {'.exe', '.msi', '.bin', '.dll', '.zip', '.rar', '.7z', '.tar', '.gz'}
 
 ALL_SUPPORTED_FORMATS = (
-    SUPPORTED_IMAGE_FORMATS | 
-    SUPPORTED_TEXT_FORMATS | 
-    SUPPORTED_DOCUMENT_FORMATS |
-    SUPPORTED_OFFICE_FORMATS |
-    SUPPORTED_BINARY_FORMATS
+    SUPPORTED_IMAGE_FORMATS | SUPPORTED_TEXT_FORMATS | 
+    SUPPORTED_DOCUMENT_FORMATS | SUPPORTED_OFFICE_FORMATS | SUPPORTED_BINARY_FORMATS
 )
 
 # ==================== DEFAULTS: IMAGE ====================
@@ -66,6 +53,9 @@ class ImageConfig:
     DEFAULT_SPACING = 10
     DEFAULT_BACKGROUND = (255, 255, 255)
     DEFAULT_QUALITY = 95
+    
+    MAX_IMAGE_WIDTH = 15000
+    MAX_IMAGE_HEIGHT = 15000
     
     RESIZE_MODES = {
         'none': 'Original Size',
@@ -85,26 +75,26 @@ class ImageConfig:
 # ==================== DEFAULTS: TEXT ====================
 class TextConfig:
     DEFAULT_ENCODING = 'utf-8'
-    DEFAULT_SEPARATOR = 'simple'
+    FALLBACK_ENCODINGS = ['latin-1', 'cp1252', 'iso-8859-1']
+    
     SEPARATOR_STYLES = {
         'simple': '=== {filename} ===',
         'fancy': '╔{border}╗\n║ {filename}\n╚{border}╝',
         'minimal': '--- {filename} ---',
         'none': ''
     }
-
-# ==================== DEFAULTS: PDF (NEW) ====================
-class PdfConfig:
-    DEFAULT_PAGE_SIZE = 'A4' # A4, LETTER
-    DEFAULT_FONT = 'Helvetica'
-    DEFAULT_FONT_SIZE = 10
-    SHOW_PAGE_NUMBERS = True
     
-    PAGE_SIZES = {
-        'A4': (595.27, 841.89),
-        'LETTER': (612.0, 792.0),
-        'LEGAL': (612.0, 1008.0)
-    }
+    DEFAULT_SEPARATOR = 'simple'
+
+# ==================== DEFAULTS: PDF ====================
+class PdfConfig:
+    """Configuration for Universal PDF Processor."""
+    DEFAULT_PAGE_SIZE = "A4"  # A4, LETTER, etc.
+    FONT_HEADER = "Helvetica-Bold"
+    FONT_BODY = "Courier"
+    FONT_SIZE_HEADER = 12
+    FONT_SIZE_BODY = 10
+    MARGIN = 40
 
 # ==================== LOGGING & OUTPUT ====================
 class LogConfig:
@@ -116,6 +106,12 @@ class OutputConfig:
     USE_TIMESTAMP = True
     AUTO_OVERWRITE = False
     CREATE_BACKUP = True
+
+# ==================== MESSAGES ====================
+ERROR_MESSAGES = {
+    'file_not_found': "File not found: {path}",
+    'invalid_format': "Unsupported format: {format}",
+}
 
 # ==================== HELPERS ====================
 def get_output_path(filename: str, use_timestamp: bool = True) -> Path:

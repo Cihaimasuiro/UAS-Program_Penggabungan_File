@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 class ImageProcessor:
     def __init__(self, config: Optional[ImageConfig] = None):
-        self.config = config or ImageConfig()
-        self.file_manager = FileManager()
+        # Use class reference to access static defaults or instance if provided
+        self.config = config or ImageConfig
 
     def _get_font(self, size: int):
         """Safely load a font with fallback strategy."""
@@ -33,16 +33,34 @@ class ImageProcessor:
         return ImageFont.load_default()
 
     def process_and_merge(self, files: List[str], output_path: str,
-                         layout: str = 'vertical',
-                         spacing: int = 10,
-                         resize_mode: str = 'none',
+                         layout: Optional[str] = None,
+                         spacing: Optional[int] = None,
+                         resize_mode: Optional[str] = None,
                          target_size: Optional[Tuple[int, int]] = None,
-                         filter_name: str = 'none',
+                         filter_name: Optional[str] = None,
                          watermark: Optional[str] = None,
                          grid_cols: Optional[int] = None) -> Tuple[bool, str]:
         """
         Merges images with memory safety and returns detailed statistics.
+        Uses Config defaults if arguments are not provided.
         """
+        # --- RESOLVE DEFAULTS FROM CONFIG ---
+        layout = layout if layout is not None else self.config.DEFAULT_LAYOUT
+        spacing = spacing if spacing is not None else self.config.DEFAULT_SPACING
+        resize_mode = resize_mode if resize_mode is not None else self.config.DEFAULT_RESIZE_MODE
+        filter_name = filter_name if filter_name is not None else self.config.DEFAULT_FILTER
+        
+        # Watermark Resolution
+        should_watermark = False
+        watermark_text = ""
+        
+        if watermark:
+            should_watermark = True
+            watermark_text = watermark
+        elif self.config.ADD_WATERMARK:
+            should_watermark = True
+            watermark_text = self.config.WATERMARK_TEXT
+
         try:
             if not files:
                 return False, "No files provided"
@@ -57,7 +75,6 @@ class ImageProcessor:
                         w, h = img.size
                         # If resizing, use the target size for calculation
                         if target_size and resize_mode != 'none':
-                            # Simple prediction (actual resize logic might vary slightly)
                             w, h = target_size
                         dims.append((w, h))
                         valid_count += 1
@@ -138,8 +155,8 @@ class ImageProcessor:
                             processed = self.apply_filter(processed, filter_name)
                         
                         # 4. Watermark
-                        if watermark:
-                            processed = self.add_watermark(processed, watermark)
+                        if should_watermark:
+                            processed = self.add_watermark(processed, watermark_text)
 
                         # 5. Paste
                         if layout == 'vertical':
@@ -259,7 +276,9 @@ class ImageProcessor:
         y = image.height - text_height - margin
         
         # Draw semi-transparent text
-        draw.text((x, y), text, font=font, fill=(255, 255, 255, 128))
+        # Use opacity from config if available
+        opacity = getattr(self.config, 'WATERMARK_OPACITY', 128)
+        draw.text((x, y), text, font=font, fill=(255, 255, 255, opacity))
         
         # Composite
         if image.mode != 'RGBA':

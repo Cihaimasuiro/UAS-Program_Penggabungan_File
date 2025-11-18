@@ -279,36 +279,96 @@ class GUIApp:
         win = Toplevel(self.root)
         win.title("Universal PDF Merge")
         win.config(bg=COLOR_BG)
-        
         tk.Label(win, text="Gabung Semua ke PDF", font=("Helvetica", 12, "bold"), bg=COLOR_BG).pack(pady=15)
         
-        # Inform user that settings are used
-        info = f"Settings: {PdfConfig.DEFAULT_PAGE_SIZE}, {PdfConfig.DEFAULT_FONT}"
-        tk.Label(win, text=info, font=("Helvetica", 9), bg=COLOR_BG, fg="#666").pack()
-
         def run():
             win.destroy()
-            # FORCE APPLY SETTINGS before running to ensure latest config is used
-            self.settings_mgr.apply_to_config()
-            
             out_path = str(get_output_path("merged_universal.pdf"))
             self._run_bg(lambda: self.universal_processor.merge_all_to_pdf(self.files, out_path), "Universal Merge")
-            
-        ttk.Button(win, text="MULAI PROSES", style="Primary.TButton", command=run).pack(fill=tk.X, padx=20, pady=20)
+        ttk.Button(win, text="MULAI", style="Primary.TButton", command=run).pack(pady=20)
 
+    # UPDATED: show_image_options to respect settings defaults
     def show_image_options(self):
-        # (Re-implement options window logic here, abbreviated for brevity as it's unchanged)
         win = Toplevel(self.root)
-        win.title("Image Options")
-        # ... (Add layout combo, etc)
-        ttk.Button(win, text="MULAI", style="Primary.TButton", command=lambda: [win.destroy(), self._run_bg(
-            lambda: self.image_processor.process_and_merge(self.files, str(get_output_path("img.png"))), "Merging Images")]).pack(pady=20)
+        win.title("Image Merge Options")
+        win.geometry("400x350")
+        win.config(bg=COLOR_BG)
+        
+        # Pull defaults from currently loaded settings
+        s = self.settings_mgr.settings
+        
+        # Variables
+        v_layout = StringVar(value=s.image_default_layout)
+        v_spacing = StringVar(value=str(s.image_default_spacing))
+        v_resize = StringVar(value=s.image_default_resize_mode)
+        v_filter = StringVar(value=s.image_default_filter)
+        
+        # UI Helper
+        def row(lbl, var, opts):
+            f = tk.Frame(win, bg=COLOR_BG)
+            f.pack(fill=tk.X, padx=20, pady=5)
+            tk.Label(f, text=lbl, width=15, anchor='w', bg=COLOR_BG).pack(side=tk.LEFT)
+            if opts:
+                ttk.Combobox(f, textvariable=var, values=opts, state="readonly").pack(side=tk.LEFT, fill=tk.X, expand=True)
+            else:
+                ttk.Entry(f, textvariable=var).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
+        tk.Label(win, text="KONFIGURASI IMAGE MERGE", font=("Helvetica", 11, "bold"), bg=COLOR_BG).pack(pady=15)
+        
+        row("Layout:", v_layout, ['vertical', 'horizontal', 'grid'])
+        row("Spacing (px):", v_spacing, None)
+        row("Resize Mode:", v_resize, ['none', 'fit', 'fill', 'stretch'])
+        row("Filter:", v_filter, ['none', 'grayscale', 'sepia', 'blur', 'sharpen'])
+        
+        def on_run():
+            try:
+                # Validate and Run
+                layout = v_layout.get()
+                spacing = int(v_spacing.get())
+                resize = v_resize.get()
+                filt = v_filter.get()
+                
+                win.destroy()
+                
+                # Execute with selected values
+                out_path = str(get_output_path("merged_image.png"))
+                self._run_bg(lambda: self.image_processor.process_and_merge(
+                    self.files, out_path,
+                    layout=layout, spacing=spacing, resize_mode=resize, filter_name=filt
+                ), "Merging Images")
+                
+            except ValueError:
+                messagebox.showerror("Error", "Spacing harus berupa angka")
+
+        ttk.Button(win, text="MULAI PROSES", style="Primary.TButton", command=on_run).pack(side=tk.BOTTOM, pady=20)
+
+    # UPDATED: show_text_options to respect settings defaults
     def show_text_options(self):
-        # (Re-implement options window logic here)
         win = Toplevel(self.root)
-        ttk.Button(win, text="MULAI", style="Primary.TButton", command=lambda: [win.destroy(), self._run_bg(
-            lambda: self.text_processor.merge_text_files(self.files, str(get_output_path("text.txt"))), "Merging Text")]).pack(pady=20)
+        win.title("Text Merge Options")
+        win.geometry("400x250")
+        win.config(bg=COLOR_BG)
+        
+        s = self.settings_mgr.settings
+        v_sep = StringVar(value=s.text_default_separator)
+        
+        tk.Label(win, text="KONFIGURASI TEXT MERGE", font=("Helvetica", 11, "bold"), bg=COLOR_BG).pack(pady=15)
+        
+        f = tk.Frame(win, bg=COLOR_BG)
+        f.pack(fill=tk.X, padx=20, pady=5)
+        tk.Label(f, text="Separator:", width=15, anchor='w', bg=COLOR_BG).pack(side=tk.LEFT)
+        ttk.Combobox(f, textvariable=v_sep, values=['simple', 'fancy', 'minimal', 'none'], state="readonly").pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        def on_run():
+            sep = v_sep.get()
+            win.destroy()
+            
+            out_path = str(get_output_path("merged_text.txt"))
+            self._run_bg(lambda: self.text_processor.merge_text_files(
+                self.files, out_path, separator_style=sep
+            ), "Merging Text")
+            
+        ttk.Button(win, text="MULAI PROSES", style="Primary.TButton", command=on_run).pack(side=tk.BOTTOM, pady=20)
 
     def _collect_files(self):
         dest = filedialog.askdirectory()

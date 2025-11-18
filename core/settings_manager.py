@@ -1,6 +1,6 @@
 """
 Settings Manager Module
-Handles persistence of user preferences, including new PDF settings.
+Handles persistence of user preferences with robust error handling.
 """
 
 import json
@@ -10,13 +10,13 @@ from typing import Any
 from dataclasses import dataclass, asdict, field
 from datetime import datetime
 
-from config import BASE_DIR, ImageConfig, TextConfig, OutputConfig, PdfConfig
+from config import BASE_DIR, ImageConfig, TextConfig, OutputConfig
 
 logger = logging.getLogger(__name__)
 
 @dataclass
 class UserSettings:
-    """User preferences data class."""
+    """User preferences data class (Source of Truth)."""
     
     # Image
     image_default_layout: str = 'vertical'
@@ -26,31 +26,37 @@ class UserSettings:
     image_default_filter: str = 'none'
     image_add_watermark: bool = False
     image_watermark_text: str = 'Copyright 2025'
+    image_watermark_position: str = 'bottom-right'
+    image_watermark_opacity: int = 128
     
     # Text
     text_default_separator: str = 'simple'
     text_default_encoding: str = 'utf-8'
     text_add_line_numbers: bool = False
+    text_add_timestamps: bool = False
+    text_strip_whitespace: bool = False
     text_markdown_export: bool = False
-    
-    # PDF / Universal (NEW)
-    pdf_page_size: str = 'A4'
-    pdf_font: str = 'Helvetica'
-    pdf_font_size: int = 10
-    pdf_show_page_numbers: bool = True
     
     # Output
     output_use_timestamp: bool = True
+    output_auto_overwrite: bool = False
     output_create_backup: bool = True
     output_default_directory: str = 'output'
     
     # System
     performance_max_workers: int = 4
+    performance_chunk_size: int = 4096
+    performance_enable_cache: bool = True
+    performance_cache_size_mb: int = 512
+    
     advanced_debug_mode: bool = False
+    advanced_log_level: str = 'INFO'
+    advanced_backup_count: int = 5
+    advanced_auto_cleanup: bool = True
     
     # Meta
     last_modified: str = field(default_factory=lambda: datetime.now().isoformat())
-    version: str = '2.3.0'
+    version: str = '2.2.1'
 
 class SettingsManager:
     SETTINGS_FILE = BASE_DIR / 'settings.json'
@@ -59,11 +65,12 @@ class SettingsManager:
         self.settings = self.load_settings()
     
     def load_settings(self) -> UserSettings:
-        """Load settings from JSON or return defaults."""
+        """Load settings from JSON or return defaults on failure."""
         if self.SETTINGS_FILE.exists():
             try:
                 with open(self.SETTINGS_FILE, 'r', encoding='utf-8') as f:
                     data = json.load(f)
+                # Filter out keys that no longer exist in the dataclass
                 valid_keys = UserSettings.__annotations__.keys()
                 filtered_data = {k: v for k, v in data.items() if k in valid_keys}
                 return UserSettings(**filtered_data)
@@ -73,11 +80,16 @@ class SettingsManager:
         return UserSettings()
     
     def save_settings(self) -> bool:
-        """Save current settings to disk."""
+        """
+        Save current settings to disk.
+        Returns True if successful, False otherwise.
+        """
         try:
             self.settings.last_modified = datetime.now().isoformat()
+            
             with open(self.SETTINGS_FILE, 'w', encoding='utf-8') as f:
                 json.dump(asdict(self.settings), f, indent=2)
+            
             logger.info("Settings saved.")
             return True
         except Exception as e:
@@ -85,41 +97,55 @@ class SettingsManager:
             return False
     
     def reset_to_defaults(self):
+        """Hard reset to factory defaults."""
         self.settings = UserSettings()
         self.save_settings()
         logger.info("Settings reset to factory defaults.")
     
+    def get_setting(self, key: str, default: Any = None) -> Any:
+        return getattr(self.settings, key, default)
+    
     def set_setting(self, key: str, value: Any):
+        """Update a setting dynamically."""
         if hasattr(self.settings, key):
             setattr(self.settings, key, value)
         else:
             logger.warning(f"Attempted to set unknown setting: {key}")
 
     def apply_to_config(self):
-        """Propagate user settings to global Config classes."""
+        """
+        Propagate user settings to global Config classes.
+        """
         # Image
         ImageConfig.DEFAULT_LAYOUT = self.settings.image_default_layout
         ImageConfig.DEFAULT_SPACING = self.settings.image_default_spacing
         ImageConfig.DEFAULT_QUALITY = self.settings.image_default_quality
+        ImageConfig.DEFAULT_RESIZE_MODE = self.settings.image_default_resize_mode
         ImageConfig.DEFAULT_FILTER = self.settings.image_default_filter
+        ImageConfig.ADD_WATERMARK = self.settings.image_add_watermark
+        ImageConfig.WATERMARK_TEXT = self.settings.image_watermark_text
+        ImageConfig.WATERMARK_POSITION = self.settings.image_watermark_position
+        ImageConfig.WATERMARK_OPACITY = self.settings.image_watermark_opacity
         
         # Text
         TextConfig.DEFAULT_SEPARATOR = self.settings.text_default_separator
         TextConfig.DEFAULT_ENCODING = self.settings.text_default_encoding
-        
-        # PDF
-        PdfConfig.DEFAULT_PAGE_SIZE = self.settings.pdf_page_size
-        PdfConfig.DEFAULT_FONT = self.settings.pdf_font
-        PdfConfig.DEFAULT_FONT_SIZE = self.settings.pdf_font_size
-        PdfConfig.SHOW_PAGE_NUMBERS = self.settings.pdf_show_page_numbers
+        TextConfig.ADD_LINE_NUMBERS = self.settings.text_add_line_numbers
+        TextConfig.ADD_TIMESTAMPS = self.settings.text_add_timestamps
+        TextConfig.STRIP_WHITESPACE = self.settings.text_strip_whitespace
+        TextConfig.MARKDOWN_EXPORT = self.settings.text_markdown_export
         
         # Output
         OutputConfig.USE_TIMESTAMP = self.settings.output_use_timestamp
+        OutputConfig.AUTO_OVERWRITE = self.settings.output_auto_overwrite
         OutputConfig.CREATE_BACKUP = self.settings.output_create_backup
+        OutputConfig.DEFAULT_DIRECTORY = self.settings.output_default_directory
         
         logger.info("User settings applied to runtime configuration.")
 
+# Singleton pattern
 _manager_instance = None
+
 def get_settings_manager() -> SettingsManager:
     global _manager_instance
     if _manager_instance is None:

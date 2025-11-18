@@ -18,16 +18,29 @@ logger = logging.getLogger(__name__)
 
 class TextProcessor:
     def __init__(self, config: Optional[TextConfig] = None):
-        self.config = config or TextConfig()
+        self.config = config or TextConfig
         self.file_manager = FileManager()
 
     def merge_text_files(self, filepaths: List[str], output_path: str,
-                        separator_style: str = 'simple',
-                        add_line_numbers: bool = False,
-                        add_timestamps: bool = False,
-                        strip_whitespace: bool = False) -> Tuple[bool, Optional[str]]:
+                        separator_style: Optional[str] = None,
+                        add_line_numbers: Optional[bool] = None,
+                        add_timestamps: Optional[bool] = None,
+                        strip_whitespace: Optional[bool] = None) -> Tuple[bool, Optional[str]]:
         """Merge text files by streaming content to output."""
+        
+        # --- RESOLVE DEFAULTS FROM CONFIG ---
+        separator_style = separator_style if separator_style is not None else self.config.DEFAULT_SEPARATOR
+        add_line_numbers = add_line_numbers if add_line_numbers is not None else self.config.ADD_LINE_NUMBERS
+        add_timestamps = add_timestamps if add_timestamps is not None else self.config.ADD_TIMESTAMPS
+        strip_whitespace = strip_whitespace if strip_whitespace is not None else self.config.STRIP_WHITESPACE
+        
         try:
+            # Check if markdown export is enabled globally (and extension is compatible)
+            if self.config.MARKDOWN_EXPORT and output_path.endswith('.txt'):
+                # Auto-switch to markdown mode
+                output_path = output_path.replace('.txt', '.md')
+                return self.convert_to_markdown(filepaths, output_path)
+
             with open(output_path, 'w', encoding='utf-8') as out_f:
                 for fpath in filepaths:
                     content, err = self.file_manager.read_file_safe(fpath)
@@ -38,7 +51,7 @@ class TextProcessor:
                     if strip_whitespace:
                         content = content.strip()
                     
-                    # Process content (in-memory for simplicity, but per-file)
+                    # Process content
                     if add_line_numbers:
                         lines = content.splitlines()
                         content = '\n'.join(f"{i+1}: {line}" for i, line in enumerate(lines))
@@ -56,7 +69,7 @@ class TextProcessor:
                     out_f.write(content)
                     out_f.write("\n\n")
             
-            return True, None
+            return True, f"Merged files into {Path(output_path).name}"
         except Exception as e:
             return False, str(e)
 
@@ -123,7 +136,6 @@ class TextProcessor:
                             
                             # Skip header if present
                             try:
-                                # Naive check: if first row matches our detected headers
                                 rows = list(reader)
                                 if not rows: continue
                                 
