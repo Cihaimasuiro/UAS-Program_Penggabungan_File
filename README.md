@@ -294,16 +294,27 @@ TEXT_SETTINGS = {
 ### **Universitas Duta Bangsa Surakarta**
 **Program Studi:** Teknik Informatika  
 **Mata Kuliah:** Pemrograman Python  
-**Dosen Pengampu:** [Nama Dosen]
+**Dosen Pengampu:** Triyono, S.Kom
 
+---
 ### **Anggota Tim** 🎯
 
-| Nama | NIM | Role | Kontribusi |
-|------|-----|------|------------|
-| **Anindyar Bintang Rahma Esa** | 230103186 | Team Lead | Architecture & Core Logic |
-| **Ridwan Yoga Pertama** | 230103206 | Backend Developer | Image Processing Module |
-| **Ramdan Oky Sulistyawan** | 230103205 | UI Developer | CLI Interface & UX |
-| **Muhammad Fakhriy Najib** | 230103069 | QA Engineer | Testing & Documentation |
+## 👥 Tim Pengembang (Kelompok Damkar)
+
+**Universitas Duta Bangsa Surakarta** **Kelas:** TI A6  
+**Mata Kuliah:** Pemrograman Python
+
+### **Anggota Tim** 🌟
+
+| Nama | NIM | Role |
+|------|-----|------|
+| **Anindyar Bintang Rahma Esa** | 230103186 | Lead Developer |
+| **Ridwan Yoga Pertama** | 230103206 | Developer |
+| **Ramdan Oky Sulistyawan** | 230103205 | UI/UX Designer |
+| **Muhammad Fakhriy Najib** | 230103069 | QA / Tester |
+| **Frebtiara Siti Fatimah** | 230103194 | Documentation |
+
+---
 
 ### **Pembagian Tugas**
 - **🔄 System Architecture** - Anindyar Bintang R.E.
