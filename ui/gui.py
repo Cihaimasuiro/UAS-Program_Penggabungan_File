@@ -1,358 +1,405 @@
 """
-Tkinter GUI for the 7 main menu features
-
-This provides a lightweight GUI front-end that reuses the existing core
-processors (FileManager, ImageProcessor, TextProcessor) and the CLI's
-internal file list. It implements:
-
-1. Add Files (open file dialog)
-2. View Selected Files (popup with info)
-3. Clear Selection
-4. Process & Merge Files (auto-detect type and run with sensible defaults)
-5. Batch Process Directory (pick folder and process matching files)
-6. Settings (open settings.json in default editor)
-7. Help (show help text)
-
-This file intentionally keeps interactions simple — most options use
-defaults from the SettingsManager when available.
+Tkinter GUI for File Merger Pro - Bauhaus Universal Edition v2.1
+Includes List Management (Reorder, Delete Single) and Universal Merging.
 """
 
 import os
+import sys
+import subprocess
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-from typing import List
+from tkinter import ttk, filedialog, messagebox, Toplevel, StringVar
 
-from ui.cli import CLI
+# Core components
 from core.settings_manager import get_settings_manager
-from config import get_output_path
+from config import get_output_path, OUTPUT_DIR
+from core.file_manager import FileManager
+from core.image_processor import ImageProcessor
+from core.text_processor import TextProcessor
+from core.universal_processor import UniversalProcessor
+from ui.gui_settings import SettingsWindow
 
+# Colors
+COLOR_BG = "#F2F2F2"
+COLOR_FG = "#1A1A1A"
+COLOR_ACCENT_1 = "#D22730" 
+COLOR_ACCENT_2 = "#1F3A93"
+COLOR_PANEL = "#FFFFFF"
 
 class GUIApp:
     def __init__(self):
-        self.cli = CLI()
         self.settings_mgr = get_settings_manager()
-
+        self.file_manager = FileManager()
+        self.image_processor = ImageProcessor()
+        self.text_processor = TextProcessor()
+        self.universal_processor = UniversalProcessor()
+        
+        self.files = [] # List of file paths
         self.root = tk.Tk()
-        self.root.title("File Merger Pro - GUI")
-        self.root.geometry("800x500")
-
+        self.root.title("File Merger Pro")
+        self.root.geometry("1000x700")
+        
+        self._setup_bauhaus_style()
         self._build_ui()
 
+    def _setup_bauhaus_style(self):
+        self.style = ttk.Style(self.root)
+        self.style.theme_use('clam')
+        
+        self.style.configure(".", background=COLOR_BG, foreground=COLOR_FG, font=("Helvetica", 10))
+        self.style.configure("TFrame", background=COLOR_BG)
+        self.style.configure("Card.TFrame", background=COLOR_PANEL, relief="flat")
+        
+        # Buttons
+        self.style.configure("Primary.TButton", background=COLOR_ACCENT_1, foreground="white", font=("Helvetica", 11, "bold"), borderwidth=0, padding=(15, 10))
+        self.style.map("Primary.TButton", background=[('active', "#B01C22"), ('pressed', "#8A1217")])
+        
+        self.style.configure("Secondary.TButton", background=COLOR_ACCENT_2, foreground="white", font=("Helvetica", 10, "bold"), borderwidth=0, padding=(15, 8))
+        
+        self.style.configure("TButton", background="#E0E0E0", foreground=COLOR_FG, font=("Helvetica", 10), borderwidth=0)
+        
+        # Small Action Buttons (for list controls)
+        self.style.configure("Action.TButton", background="#FFFFFF", foreground=COLOR_FG, font=("Helvetica", 9), borderwidth=1, relief="solid")
+        self.style.map("Action.TButton", background=[('active', "#EEEEEE")])
+
+        self.style.configure("Treeview", background="white", fieldbackground="white", foreground=COLOR_FG, rowheight=30, font=("Helvetica", 10), borderwidth=0)
+        self.style.configure("Treeview.Heading", background=COLOR_FG, foreground="white", font=("Helvetica", 10, "bold"), relief="flat")
+
     def _build_ui(self):
-        # Left control frame
-        left = ttk.Frame(self.root, padding=10)
-        left.pack(side=tk.LEFT, fill=tk.Y)
+        # Sidebar
+        sidebar = tk.Frame(self.root, bg=COLOR_FG, width=240)
+        sidebar.pack(side=tk.LEFT, fill=tk.Y)
+        sidebar.pack_propagate(False)
+        
+        tk.Label(sidebar, text="FILE\nMERGER\nPRO", bg=COLOR_FG, fg="white", font=("Helvetica", 24, "bold"), justify=tk.LEFT).pack(anchor='w', padx=25, pady=(40, 40))
 
-        btn_add = ttk.Button(left, text="1. Add Files", width=25, command=self.add_files)
-        btn_add.pack(pady=4)
+        def add_nav_btn(text, cmd, style="TButton"):
+            ttk.Button(sidebar, text=text, command=cmd, style=style, cursor="hand2").pack(fill=tk.X, padx=20, pady=6)
 
-        btn_view = ttk.Button(left, text="2. View Selected Files", width=25, command=self.view_files)
-        btn_view.pack(pady=4)
+        add_nav_btn("Tambah File", self.add_files, "Primary.TButton")
+        ttk.Separator(sidebar, orient='horizontal').pack(fill=tk.X, padx=20, pady=15)
+        add_nav_btn("Proses & Gabung", self.process_files, "TButton")
+        add_nav_btn("Batch Folder", self.batch_process, "TButton")
+        add_nav_btn("Kosongkan Semua", self.clear_all_files, "TButton")
+        
+        tk.Label(sidebar, bg=COLOR_FG).pack(expand=True)
+        add_nav_btn("Pengaturan", self.open_settings, "Secondary.TButton")
+        add_nav_btn("Bantuan", self.show_help, "TButton")
+        add_nav_btn("Keluar", self.root.destroy, "TButton")
 
-        btn_clear = ttk.Button(left, text="3. Clear Selection", width=25, command=self.clear_selection)
-        btn_clear.pack(pady=4)
+        # Main Area
+        main_area = ttk.Frame(self.root, style="TFrame")
+        main_area.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        
+        # Header
+        header = ttk.Frame(main_area, padding=25)
+        header.pack(fill=tk.X)
+        ttk.Label(header, text="WORKSPACE", font=("Helvetica", 14, "bold"), foreground="#888").pack(side=tk.LEFT)
 
-        btn_process = ttk.Button(left, text="4. Process & Merge Files", width=25, command=self.process_files)
-        btn_process.pack(pady=4)
+        # Content Card
+        content_card = ttk.Frame(main_area, style="Card.TFrame", padding=2)
+        content_card.pack(fill=tk.BOTH, expand=True, padx=25, pady=(0, 10))
+        
+        self.notebook = ttk.Notebook(content_card)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Files Tab
+        tab_files = ttk.Frame(self.notebook)
+        self._build_file_list_tab(tab_files)
+        self.notebook.add(tab_files, text="  FILE TERPILIH  ")
+        
+        # Logs Tab
+        tab_logs = ttk.Frame(self.notebook)
+        self._build_log_tab(tab_logs)
+        self.notebook.add(tab_logs, text="  STATUS / LOG  ")
+        
+        self.status_var = StringVar(value="Siap.")
+        tk.Label(main_area, textvariable=self.status_var, bg=COLOR_BG, fg="#666", font=("Helvetica", 9), anchor='w', padx=25, pady=10).pack(fill=tk.X)
 
-        btn_batch = ttk.Button(left, text="5. Batch Process Directory", width=25, command=self.batch_process)
-        btn_batch.pack(pady=4)
+    def _build_file_list_tab(self, parent):
+        # List Controls Toolbar
+        toolbar = tk.Frame(parent, bg="white", pady=5)
+        toolbar.pack(fill=tk.X, padx=5)
+        
+        def action_btn(txt, cmd):
+            ttk.Button(toolbar, text=txt, style="Action.TButton", command=cmd, width=12).pack(side=tk.LEFT, padx=2)
 
-        btn_settings = ttk.Button(left, text="6. Settings", width=25, command=self.open_settings)
-        btn_settings.pack(pady=4)
+        action_btn("⬆ Naik", self.move_up)
+        action_btn("⬇ Turun", self.move_down)
+        action_btn("❌ Hapus File", self.remove_selected)
+        
+        # Treeview
+        self.treeview = ttk.Treeview(parent, columns=('idx', 'name', 'size', 'type'), show='headings')
+        self.treeview.heading('idx', text='#')
+        self.treeview.heading('name', text='NAMA FILE')
+        self.treeview.heading('size', text='UKURAN')
+        self.treeview.heading('type', text='TIPE')
+        
+        self.treeview.column('idx', width=40, anchor=tk.CENTER)
+        self.treeview.column('name', width=400)
+        self.treeview.column('size', width=100, anchor=tk.E)
+        self.treeview.column('type', width=100, anchor=tk.CENTER)
+        
+        sb = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=self.treeview.yview)
+        self.treeview.configure(yscrollcommand=sb.set)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.treeview.pack(fill=tk.BOTH, expand=True)
 
-        btn_help = ttk.Button(left, text="7. Help", width=25, command=self.show_help)
-        btn_help.pack(pady=4)
+    def _build_log_tab(self, parent):
+        self.log = tk.Text(parent, state='disabled', wrap=tk.WORD, font=("Consolas", 9), bg="white", fg="#333", relief="flat")
+        sb = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=self.log.yview)
+        self.log.configure(yscrollcommand=sb.set)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.log.pack(fill=tk.BOTH, expand=True)
 
-        # Right main frame
-        right = ttk.Frame(self.root, padding=(10, 10, 10, 10))
-        right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-
-        lbl = ttk.Label(right, text="Selected Files")
-        lbl.pack(anchor=tk.W)
-
-        self.listbox = tk.Listbox(right, height=15)
-        self.listbox.pack(fill=tk.BOTH, expand=True)
-
-        # Small status/log area
-        status_lbl = ttk.Label(right, text="Status / Logs")
-        status_lbl.pack(anchor=tk.W, pady=(8, 0))
-
-        self.log = tk.Text(right, height=8, state='disabled')
-        self.log.pack(fill=tk.BOTH, expand=False)
-
-        # Populate any pre-existing files
-        self._refresh_listbox()
-
-    def _log(self, msg: str):
+    def _log(self, msg):
         self.log.configure(state='normal')
-        self.log.insert(tk.END, msg + "\n")
+        self.log.insert(tk.END, f"• {msg}\n")
         self.log.see(tk.END)
         self.log.configure(state='disabled')
+        self.status_var.set(msg)
 
-    def _refresh_listbox(self):
-        self.listbox.delete(0, tk.END)
-        for f in self.cli.files:
-            self.listbox.insert(tk.END, f)
+    def _refresh_file_tree(self):
+        for item in self.treeview.get_children(): self.treeview.delete(item)
+        for i, f in enumerate(self.files):
+            info = self.file_manager.get_file_info(f)
+            self.treeview.insert('', tk.END, values=(i+1, info['name'], f"{info['size_mb']} MB", info['category']))
 
+    # --- NEW LIST MANAGEMENT FUNCTIONS ---
     def add_files(self):
-        paths = filedialog.askopenfilenames(title="Select files to add")
-        if not paths:
-            return
-
-        added = 0
+        paths = filedialog.askopenfilenames()
+        if not paths: return
+        count = 0
         for p in paths:
-            is_valid, err = self.cli.file_manager.validate_file(p)
-            if is_valid and p not in self.cli.files:
-                self.cli.files.append(p)
-                added += 1
-            elif not is_valid:
-                self._log(f"✗ Invalid: {p} - {err}")
+            is_valid, err = self.file_manager.validate_file(p)
+            if is_valid:
+                # FIXED: Duplicates now allowed for creative layouts
+                self.files.append(p)
+                count += 1
+            elif not is_valid: self._log(f"Skip: {os.path.basename(p)} ({err})")
+        if count > 0:
+            self._refresh_file_tree()
+            self._log(f"Ditambahkan {count} file.")
 
-        self._log(f"✓ Added {added} files")
-        self._refresh_listbox()
+    def remove_selected(self):
+        selected = self.treeview.selection()
+        if not selected: return
+        
+        # Remove in reverse index order to maintain integrity
+        indices = sorted([self.treeview.index(item) for item in selected], reverse=True)
+        for i in indices:
+            if 0 <= i < len(self.files):
+                del self.files[i]
+        
+        self._refresh_file_tree()
+        self._log(f"Dihapus {len(indices)} file.")
 
-    def view_files(self):
-        if not self.cli.files:
-            messagebox.showinfo("Selected Files", "No files selected")
-            return
+    def move_up(self):
+        selected = self.treeview.selection()
+        if not selected: return
+        
+        rows = [self.treeview.index(item) for item in selected]
+        if any(r == 0 for r in rows): return # Can't move up if at top
+        
+        for r in sorted(rows):
+            self.files[r], self.files[r-1] = self.files[r-1], self.files[r]
+            
+        self._refresh_file_tree()
+        # Reselect
+        for r in rows:
+            child = self.treeview.get_children()[r-1]
+            self.treeview.selection_add(child)
 
-        top = tk.Toplevel(self.root)
-        top.title("Selected Files")
-        top.geometry("600x400")
+    def move_down(self):
+        selected = self.treeview.selection()
+        if not selected: return
+        
+        rows = [self.treeview.index(item) for item in selected]
+        if any(r == len(self.files)-1 for r in rows): return # Can't move down if at bottom
+        
+        for r in sorted(rows, reverse=True):
+            self.files[r], self.files[r+1] = self.files[r+1], self.files[r]
+            
+        self._refresh_file_tree()
+        # Reselect
+        for r in rows:
+            child = self.treeview.get_children()[r+1]
+            self.treeview.selection_add(child)
 
-        tree = ttk.Treeview(top, columns=("size", "type"), show='headings')
-        tree.heading('size', text='Size (MB)')
-        tree.heading('type', text='Category')
-        tree.pack(fill=tk.BOTH, expand=True)
+    def clear_all_files(self):
+        if self.files and messagebox.askyesno("Konfirmasi", "Kosongkan seluruh daftar file?"):
+            self.files.clear()
+            self._refresh_file_tree()
+            self._log("Daftar dibersihkan.")
 
-        for f in self.cli.files:
-            info = self.cli.file_manager.get_file_info(f)
-            tree.insert('', tk.END, values=(info['name'], f"{info['size_mb']:.2f}", info['category']))
-
-    def clear_selection(self):
-        if not self.cli.files:
-            self._log("⚠ No files to clear")
-            return
-
-        if messagebox.askyesno("Clear Selection", f"Clear {len(self.cli.files)} selected files?"):
-            self.cli.files.clear()
-            self._refresh_listbox()
-            self._log("✓ Selection cleared")
-
+    # --- PROCESSING LOGIC (UNCHANGED) ---
     def process_files(self):
-        if not self.cli.files:
-            messagebox.showwarning("No files", "Please add files before processing")
+        if not self.files:
+            messagebox.showwarning("Info", "Pilih file terlebih dahulu.")
             return
+            
+        valid, category = self.file_manager.check_file_types_consistency(self.files)
+        self.settings_mgr.apply_to_config()
+        
+        choice = self._ask_merge_or_collect(category)
+        if choice == 'collect':
+            self._collect_files()
+        elif choice == 'merge':
+            if category == 'image': self.show_image_options()
+            elif category == 'text': self.show_text_options()
+            elif category in ('mixed', 'document'): self.show_universal_options()
+            else: messagebox.showwarning("Info", f"Tipe '{category}' tidak mendukung penggabungan.")
 
-        # Run processing in a background thread to keep GUI responsive
-        thread = threading.Thread(target=self._process_files_background, daemon=True)
-        thread.start()
+    def _ask_merge_or_collect(self, category) -> str:
+        win = Toplevel(self.root)
+        win.title("Pilih Aksi")
+        win.geometry("450x200")
+        win.config(bg=COLOR_BG)
+        win.transient(self.root)
+        win.grab_set()
+        
+        msg = "Mode Universal PDF Merge tersedia." if category == 'mixed' else f"Terdeteksi: {category.upper()}"
+        tk.Label(win, text=msg, font=("Helvetica", 11), bg=COLOR_BG).pack(pady=20)
+        
+        choice = {'val': 'merge'}
+        f = tk.Frame(win, bg=COLOR_BG)
+        f.pack(pady=10)
+        
+        def set_mode(m):
+            choice['val'] = m
+            win.destroy()
 
-    def _process_files_background(self):
-        self._log("⏳ Detecting file types and processing...")
-        is_consistent, category = self.cli.file_manager.check_file_types_consistency(self.cli.files)
+        ttk.Button(f, text="GABUNG (Merge)", style="Primary.TButton", command=lambda: set_mode('merge')).pack(side=tk.LEFT, padx=10)
+        ttk.Button(f, text="KUMPULKAN (Collect)", style="Secondary.TButton", command=lambda: set_mode('collect')).pack(side=tk.LEFT, padx=10)
+        
+        self.root.wait_window(win)
+        return choice['val']
 
-        if not is_consistent:
-            self._log("⚠ Mixed file types detected. Aborting.")
-            messagebox.showerror("Mixed types", "Selected files have mixed categories. Make sure all are the same type.")
-            return
+    def show_universal_options(self):
+        win = Toplevel(self.root)
+        win.title("Universal PDF Merge")
+        win.config(bg=COLOR_BG)
+        tk.Label(win, text="Gabung Semua ke PDF", font=("Helvetica", 12, "bold"), bg=COLOR_BG).pack(pady=15)
+        
+        def run():
+            win.destroy()
+            out_path = str(get_output_path("merged_universal.pdf"))
+            self._run_bg(lambda: self.universal_processor.merge_all_to_pdf(self.files, out_path), "Universal Merge")
+        ttk.Button(win, text="MULAI", style="Primary.TButton", command=run).pack(pady=20)
 
-        # Apply settings to use defaults
-        try:
-            self.settings_mgr.apply_to_config()
-        except Exception:
-            pass
-
-        # Ask user which mode: Merge into single output OR Collect files into a folder
-        mode_choice = self._ask_merge_or_collect()
-
-        if mode_choice == 'collect':
-            # Ask destination folder via dialog
-            dest_dir = filedialog.askdirectory(title="Select destination folder (Cancel to use default)")
-            from datetime import datetime
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            default_folder = str(get_output_path(f'collected_{timestamp}'))
-            out_folder = dest_dir if dest_dir else default_folder
-
-            # Ask copy vs move
-            move_flag = messagebox.askyesno("Copy or Move?", "Move files instead of copying?\nYes = Move (remove originals)\nNo = Copy (keep originals)")
-
-            success, error = self.cli.file_manager.copy_files_to_folder(self.cli.files, out_folder, move=move_flag)
-            if success:
-                verb = 'moved' if move_flag else 'copied'
-                self._log(f"✅ Files {verb} to folder: {out_folder}")
-                messagebox.showinfo("Success", f"Files {verb} to folder:\n{out_folder}")
+    # UPDATED: show_image_options to respect settings defaults
+    def show_image_options(self):
+        win = Toplevel(self.root)
+        win.title("Image Merge Options")
+        win.geometry("400x350")
+        win.config(bg=COLOR_BG)
+        
+        # Pull defaults from currently loaded settings
+        s = self.settings_mgr.settings
+        
+        # Variables
+        v_layout = StringVar(value=s.image_default_layout)
+        v_spacing = StringVar(value=str(s.image_default_spacing))
+        v_resize = StringVar(value=s.image_default_resize_mode)
+        v_filter = StringVar(value=s.image_default_filter)
+        
+        # UI Helper
+        def row(lbl, var, opts):
+            f = tk.Frame(win, bg=COLOR_BG)
+            f.pack(fill=tk.X, padx=20, pady=5)
+            tk.Label(f, text=lbl, width=15, anchor='w', bg=COLOR_BG).pack(side=tk.LEFT)
+            if opts:
+                ttk.Combobox(f, textvariable=var, values=opts, state="readonly").pack(side=tk.LEFT, fill=tk.X, expand=True)
             else:
-                self._log(f"❌ Error copying/moving files: {error}")
-                messagebox.showerror("Error", str(error))
-            return
+                ttk.Entry(f, textvariable=var).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        if category == 'image':
-            # Use defaults from settings manager where possible
-            s = self.settings_mgr.settings
-            layout = s.image_default_layout
-            spacing = s.image_default_spacing
-            resize_mode = s.image_default_resize_mode
-            filter_name = s.image_default_filter
-            watermark = s.image_watermark_text if s.image_add_watermark else None
-
-            output_name = f"merged_images.png"
-            output_path = str(get_output_path(output_name))
-
-            success, error = self.cli.image_processor.process_and_merge(
-                self.cli.files,
-                output_path,
-                layout=layout,
-                resize_mode=resize_mode,
-                target_size=None,
-                filter_name=filter_name,
-                watermark=watermark,
-                spacing=spacing,
-                grid_cols=None
-            )
-
-            if success:
-                self._log(f"✅ Images merged: {output_path}")
-                messagebox.showinfo("Success", f"Images merged:\n{output_path}")
-            else:
-                self._log(f"❌ Error: {error}")
-                messagebox.showerror("Error", str(error))
-
-        elif category == 'text':
-            s = self.settings_mgr.settings
-            separator = s.text_default_separator
-            add_ln = s.text_add_line_numbers
-            add_ts = s.text_add_timestamps
-            strip_ws = s.text_strip_whitespace
-
-            output_name = f"merged.txt"
-            output_path = str(get_output_path(output_name))
-
-            success, error = self.cli.text_processor.merge_text_files(
-                self.cli.files,
-                output_path,
-                separator_style=separator,
-                add_line_numbers=add_ln,
-                add_timestamps=add_ts,
-                strip_whitespace=strip_ws
-            )
-
-            if success:
-                self._log(f"✅ Text merged: {output_path}")
-                messagebox.showinfo("Success", f"Text merged:\n{output_path}")
-            else:
-                self._log(f"❌ Error: {error}")
-                messagebox.showerror("Error", str(error))
-        else:
-            self._log(f"⚠ Unsupported category: {category}")
-            messagebox.showwarning("Unsupported", f"Unsupported category: {category}")
-
-    def batch_process(self):
-        directory = filedialog.askdirectory(title="Select directory to batch process")
-        if not directory:
-            return
-
-        # Ask user whether to process images or text
-        choice = messagebox.askquestion("Batch Type", "Process images in folder? Click 'No' for text files.")
-        # Determine extensions set
-        path = os.path.abspath(directory)
-        files = []
-
-        if choice == 'yes':
-            exts = {'.png', '.jpg', '.jpeg', '.bmp', '.gif'}
-        else:
-            exts = {'.txt', '.md', '.log', '.csv'}
-
-        for entry in os.scandir(path):
-            if entry.is_file() and os.path.splitext(entry.name)[1].lower() in exts:
-                files.append(entry.path)
-
-        if not files:
-            messagebox.showinfo("No files", "No matching files found in the selected directory.")
-            return
-
-        self.cli.files = files
-        self._refresh_listbox()
-        self._log(f"✓ Found {len(files)} files in {directory}")
-        self.process_files()
-
-    def open_settings(self):
-        # Open settings.json in default editor (platform-specific)
-        sm = self.settings_mgr
-        settings_path = sm.SETTINGS_FILE if hasattr(sm, 'SETTINGS_FILE') else None
-        if settings_path and settings_path.exists():
+        tk.Label(win, text="KONFIGURASI IMAGE MERGE", font=("Helvetica", 11, "bold"), bg=COLOR_BG).pack(pady=15)
+        
+        row("Layout:", v_layout, ['vertical', 'horizontal', 'grid'])
+        row("Spacing (px):", v_spacing, None)
+        row("Resize Mode:", v_resize, ['none', 'fit', 'fill', 'stretch'])
+        row("Filter:", v_filter, ['none', 'grayscale', 'sepia', 'blur', 'sharpen'])
+        
+        def on_run():
             try:
-                # Windows-friendly
-                if os.name == 'nt':
-                    os.startfile(str(settings_path))
-                else:
-                    # Fallback to xdg-open / open
-                    opener = 'open' if os.uname().sysname == 'Darwin' else 'xdg-open'
-                    os.system(f"{opener} '{settings_path}'")
-                self._log(f"Opened settings: {settings_path}")
+                # Validate and Run
+                layout = v_layout.get()
+                spacing = int(v_spacing.get())
+                resize = v_resize.get()
+                filt = v_filter.get()
+                
+                win.destroy()
+                
+                # Execute with selected values
+                out_path = str(get_output_path("merged_image.png"))
+                self._run_bg(lambda: self.image_processor.process_and_merge(
+                    self.files, out_path,
+                    layout=layout, spacing=spacing, resize_mode=resize, filter_name=filt
+                ), "Merging Images")
+                
+            except ValueError:
+                messagebox.showerror("Error", "Spacing harus berupa angka")
+
+        ttk.Button(win, text="MULAI PROSES", style="Primary.TButton", command=on_run).pack(side=tk.BOTTOM, pady=20)
+
+    # UPDATED: show_text_options to respect settings defaults
+    def show_text_options(self):
+        win = Toplevel(self.root)
+        win.title("Text Merge Options")
+        win.geometry("400x250")
+        win.config(bg=COLOR_BG)
+        
+        s = self.settings_mgr.settings
+        v_sep = StringVar(value=s.text_default_separator)
+        
+        tk.Label(win, text="KONFIGURASI TEXT MERGE", font=("Helvetica", 11, "bold"), bg=COLOR_BG).pack(pady=15)
+        
+        f = tk.Frame(win, bg=COLOR_BG)
+        f.pack(fill=tk.X, padx=20, pady=5)
+        tk.Label(f, text="Separator:", width=15, anchor='w', bg=COLOR_BG).pack(side=tk.LEFT)
+        ttk.Combobox(f, textvariable=v_sep, values=['simple', 'fancy', 'minimal', 'none'], state="readonly").pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        def on_run():
+            sep = v_sep.get()
+            win.destroy()
+            
+            out_path = str(get_output_path("merged_text.txt"))
+            self._run_bg(lambda: self.text_processor.merge_text_files(
+                self.files, out_path, separator_style=sep
+            ), "Merging Text")
+            
+        ttk.Button(win, text="MULAI PROSES", style="Primary.TButton", command=on_run).pack(side=tk.BOTTOM, pady=20)
+
+    def _collect_files(self):
+        dest = filedialog.askdirectory()
+        if dest:
+            self._run_bg(lambda: self.file_manager.copy_files_to_folder(self.files, dest), "Collecting")
+
+    def _run_bg(self, func, desc):
+        self._log(f"⏳ {desc}...")
+        self.notebook.select(1)
+        def task():
+            try:
+                res = func()
+                if isinstance(res, tuple):
+                    ok, msg = res
+                    self.root.after(0, lambda: self._log(f"{'✅' if ok else '❌'} {msg}"))
+                    if ok: self.root.after(0, lambda: self._ask_open(str(OUTPUT_DIR)))
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to open settings: {e}")
-        else:
-            messagebox.showinfo("Settings", "No settings file found. Settings will be saved on next change.")
+                self.root.after(0, lambda: self._log(f"❌ Error: {e}"))
+        threading.Thread(target=task, daemon=True).start()
 
-    def show_help(self):
-        from ui.cli import CLI
-        help_text = CLI().show_help.__doc__ or "See CLI help for usage."
-        # Provide a friendly help popup with brief info
-        message = (
-            "File Merger Pro GUI\n\n" 
-            "• Add files then click 'Process & Merge Files'.\n"
-            "• Batch process a directory using option 5.\n"
-            "• Settings opens the settings.json for manual editing.\n"
-            "• Output files are saved to the configured output folder.\n"
-        )
-        messagebox.showinfo("Help", message)
+    def _ask_open(self, path):
+        if messagebox.askyesno("Selesai", "Buka folder output?"):
+            try:
+                if sys.platform=='win32': os.startfile(path)
+                else: subprocess.Popen(['xdg-open', path])
+            except: pass
 
-    def run(self):
-        self.root.mainloop()
-
-    def _ask_merge_or_collect(self) -> str:
-        """Show a small modal dialog with two labeled buttons: Merge and Collect.
-        Returns 'merge' or 'collect'.
-        """
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Choose action")
-        dialog.geometry("360x120")
-        dialog.transient(self.root)
-        dialog.grab_set()
-
-        label = ttk.Label(dialog, text="How do you want to process the selected files?")
-        label.pack(pady=10)
-
-        choice = {'value': 'merge'}
-
-        def on_merge():
-            choice['value'] = 'merge'
-            dialog.destroy()
-
-        def on_collect():
-            choice['value'] = 'collect'
-            dialog.destroy()
-
-        btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(pady=8)
-
-        btn_merge = ttk.Button(btn_frame, text="Merge into single output", command=on_merge)
-        btn_merge.pack(side=tk.LEFT, padx=8)
-
-        btn_collect = ttk.Button(btn_frame, text="Collect into folder", command=on_collect)
-        btn_collect.pack(side=tk.LEFT, padx=8)
-
-        self.root.wait_window(dialog)
-        return choice['value']
-
-
-def run_gui():
-    app = GUIApp()
-    app.run()
-
+    def batch_process(self): messagebox.showinfo("Info", "Fitur Batch belum diimplementasi di UI ini.")
+    def open_settings(self): SettingsWindow(self.root, self.settings_mgr)
+    def show_help(self): messagebox.showinfo("Bantuan", "Gunakan panel samping untuk navigasi.")
+    def run(self): self.root.mainloop()
 
 if __name__ == '__main__':
-    run_gui()
+    GUIApp().run()

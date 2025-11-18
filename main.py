@@ -1,6 +1,6 @@
 """
 File Merger Pro - Main Application
-Entry point untuk aplikasi dengan logging dan error handling
+Entry point with robust error handling and logging setup.
 """
 
 import sys
@@ -12,105 +12,76 @@ from config import LogConfig, APP_NAME, APP_VERSION
 from core.settings_manager import get_settings_manager
 
 def setup_logging():
-    """Configure logging system"""
+    """Configure logging system."""
     logging.basicConfig(
-        level=getattr(logging, LogConfig.LOG_LEVEL),
+        level=getattr(logging, LogConfig.LOG_LEVEL, logging.INFO),
         format=LogConfig.LOG_FORMAT,
         handlers=[
             logging.FileHandler(LogConfig.LOG_FILE, encoding='utf-8'),
             logging.StreamHandler(sys.stdout)
         ]
     )
-    
-    # Set library loggers to WARNING
+    # Silence noisy libraries
     logging.getLogger('PIL').setLevel(logging.WARNING)
     
     logger = logging.getLogger(__name__)
     logger.info(f"Starting {APP_NAME} v{APP_VERSION}")
     return logger
 
-def apply_user_settings(logger):
-    """Load and apply settings from settings.json at startup"""
-    try:
-        manager = get_settings_manager()
-        manager.apply_to_config()
-        logger.info("User settings loaded and applied to config.")
-    except Exception as e:
-        logger.error(f"Failed to apply user settings: {e}")
-
-def check_dependencies():
-    """Check if required dependencies are installed"""
-    required = ['PIL', 'pathlib']
-    missing = []
-    
-    for module in required:
-        try:
-            __import__(module)
-        except ImportError:
-            missing.append(module)
-    
-    if missing:
-        print(f"❌ Missing dependencies: {', '.join(missing)}")
-        print("Install with: pip install Pillow")
-        sys.exit(1)
-
 def main():
-    """Main application entry point"""
-    # Setup
     logger = setup_logging()
-    apply_user_settings(logger)
-    check_dependencies()
     
+    # Apply user settings at startup
     try:
-        # Behaviour:
-        # - If --gui flag provided -> start GUI
-        # - If --cli flag provided -> start CLI
-        # - If neither provided -> ask the user interactively which interface to use
-        if '--gui' in sys.argv:
-            try:
-                from ui.gui import run_gui
-                run_gui()
-                return
-            except Exception as e:
-                logger.error(f"Failed to start GUI: {e}", exc_info=True)
-                print(f"Error starting GUI: {e}")
-
-        if '--cli' in sys.argv:
-            from ui.cli import CLI
-            cli = CLI()
-            cli.run()
-            return
-
-        # No explicit flag provided: ask user which interface they want
-        try:
-            choice = input("Pilih mode: [1] Terminal (CLI)  [2] GUI  (default 1) : ").strip()
-        except EOFError:
-            # Non-interactive environment -> default to CLI
-            choice = '1'
-
-        if choice == '2' or choice.lower() in ('g', 'gui'):
-            try:
-                from ui.gui import run_gui
-                run_gui()
-                return
-            except Exception as e:
-                logger.error(f"Failed to start GUI after user request: {e}", exc_info=True)
-                print(f"Error starting GUI: {e}\nFalling back to CLI.")
-
-        # Default/ fallback to CLI
-        from ui.cli import CLI
-        cli = CLI()
-        cli.run()
-        
-    except KeyboardInterrupt:
-        print("\n\n👋 Application interrupted by user. Goodbye!")
-        logger.info("Application interrupted by user")
-        sys.exit(0)
-    
+        get_settings_manager().apply_to_config()
+        logger.info("Settings loaded.")
     except Exception as e:
-        logger.error(f"Fatal error: {str(e)}", exc_info=True)
-        print(f"\n❌ Fatal error occurred: {str(e)}")
-        print("Check logs for details: logs/app.log")
+        logger.error(f"Failed to load settings: {e}")
+
+    try:
+        # Mode Selection
+        mode = 'cli'
+        if '--gui' in sys.argv:
+            mode = 'gui'
+        elif '--cli' in sys.argv:
+            mode = 'cli'
+        else:
+            # Default behavior: Ask if interactive, otherwise CLI
+            if sys.stdin.isatty():
+                print(f"Welcome to {APP_NAME}")
+                print("[1] GUI (Graphical Interface)")
+                print("[2] CLI (Command Line)")
+                choice = input("Select mode [1]: ").strip()
+                if choice in ('', '1', 'gui', 'g'):
+                    mode = 'gui'
+            else:
+                mode = 'cli'
+
+        # Launch
+        if mode == 'gui':
+            try:
+                # Lazy import to avoid Tkinter overhead if not needed
+                from ui.gui import GUIApp
+                app = GUIApp()
+                app.run()
+            except ImportError as e:
+                logger.error(f"GUI dependencies missing: {e}")
+                print("❌ GUI failed to start. Falling back to CLI.")
+                from ui.cli import CLI
+                CLI().run()
+            except Exception as e:
+                logger.error(f"GUI Crash: {e}", exc_info=True)
+                print(f"❌ GUI Crash: {e}")
+        else:
+            from ui.cli import CLI
+            CLI().run()
+
+    except KeyboardInterrupt:
+        print("\nGoodbye!")
+        sys.exit(0)
+    except Exception as e:
+        logger.critical(f"Fatal Error: {e}", exc_info=True)
+        print(f"Fatal Error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

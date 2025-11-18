@@ -9,10 +9,10 @@ long_description = (this_directory / "README.md").read_text(encoding='utf-8')
 
 setup(
     name="file-merger-pro",
-    version="2.0.0",
-    author="Anindyar Bintang Rahma Esa",             # <--- DIPERBARUI
-    author_email="email.anda@contoh.com",            # <--- GANTI INI
-    description="Advanced file merging tool for images and text files",
+    version="2.2.0",
+    author="Tim Damkar - Universitas Duta Bangsa Surakarta",
+    author_email="230103186@mhs.udb.ac.id",
+    description="Advanced file merging tool by Damkar Team",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/Cihaimasuiro/UAS_Program_Penggabung_File", # <--- DIPERBARUI

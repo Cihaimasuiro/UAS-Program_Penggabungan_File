@@ -3,30 +3,6 @@
 
 # Core dependencies
 Pillow>=10.0.0          # Image processing
-
-# Optional dependencies for advanced features
-# Uncomment if you want to use these features:
-
-# For PDF support
-# PyPDF2>=3.0.0
-# reportlab>=4.0.0
-
-# For Excel support
-# openpyxl>=3.1.0
-
-# For advanced CLI
-# rich>=13.0.0
-# prompt-toolkit>=3.0.0
-
-# For web interface (future)
-# flask>=3.0.0
-# flask-cors>=4.0.0
-
-# For async operations
-# aiofiles>=23.0.0
-
-# Development dependencies
-# pytest>=7.4.0
-# pytest-cov>=4.1.0
-# black>=23.0.0
-# flake8>=6.0.0
+reportlab>=4.0.0        # PDF Generation (Universal Merge)
+pypdf>=3.0.0            # PDF Merging (Universal Merge)
+openpyxl>=3.1.0         # Excel Reading (New)
